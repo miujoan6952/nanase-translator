@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nanase translator (Bahasa Nanas)</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🍍%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#f2f6e6; --surface:#ffffff; --ink:#1d2916; --muted:#58654a; --line:#cbd8ac;
+  --gold:#f2b705; --gold-ink:#2e2200; --leaf:#2a6a39; --leaf-soft:#e0eec6; --focus:#1c5a2b;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#10160d; --surface:#18210f; --ink:#eef3dc; --muted:#a3b190; --line:#36452a;
+    --gold:#f5c42c; --gold-ink:#241a00; --leaf:#8fd29c; --leaf-soft:#243318; --focus:#8fd29c;
+  }
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg)}
+button,select,textarea,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+/* pineapple-skin lattice */
+.hero{
+  background-color:var(--gold);
+  background-image:
+    linear-gradient(45deg,rgba(46,34,0,.16) 2px,transparent 2px),
+    linear-gradient(-45deg,rgba(46,34,0,.16) 2px,transparent 2px);
+  background-size:26px 26px;
+  color:var(--gold-ink);
+  padding:2.2rem 1.25rem 3.6rem;
+}
+.wrap{max-width:62rem;margin:0 auto}
+h1{margin:0;font:800 clamp(2rem,6vw,3.4rem)/1.05 "Trebuchet MS","Avenir Next",system-ui,sans-serif;letter-spacing:-.02em}
+.hero p{margin:.6rem 0 0;max-width:36rem;font-size:1.05rem}
+
+main{margin-top:-2.4rem;padding:0 1.25rem 3rem}
+.card{background:var(--surface);border:2px solid var(--gold-ink);border-radius:14px;box-shadow:6px 6px 0 var(--gold-ink);padding:1rem}
+@media (prefers-color-scheme:dark){.card{border-color:var(--gold);box-shadow:6px 6px 0 var(--gold)}}
+
+.modes{display:inline-flex;border:2px solid var(--leaf);border-radius:999px;overflow:hidden;margin-bottom:1rem}
+.modes button{border:0;background:transparent;padding:.45rem 1.1rem;cursor:pointer;font-weight:600;color:var(--leaf)}
+.modes button[aria-selected="true"]{background:var(--leaf);color:var(--surface)}
+
+.panes{display:grid;gap:1rem;grid-template-columns:1fr 1fr}
+@media (max-width:760px){.panes{grid-template-columns:1fr}}
+.pane label{display:block;font-weight:700;margin-bottom:.3rem}
+textarea{width:100%;min-height:11rem;resize:vertical;padding:.75rem;border:2px solid var(--line);border-radius:10px;background:var(--bg);line-height:1.55;overflow-wrap:anywhere}
+#dst{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.98rem;background:var(--leaf-soft)}
+
+.bar{display:flex;flex-wrap:wrap;gap:.6rem 1.2rem;align-items:center;margin-top:1rem}
+.opts{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;align-items:center}
+.opts label{display:inline-flex;gap:.4rem;align-items:center;cursor:pointer}
+.opts[aria-disabled="true"]{opacity:.45;pointer-events:none}
+select{padding:.25rem .4rem;border:2px solid var(--line);border-radius:8px;background:var(--surface)}
+.btns{display:flex;gap:.5rem;margin-left:auto}
+.btn{border:2px solid var(--leaf);background:transparent;color:var(--leaf);border-radius:8px;padding:.4rem .9rem;cursor:pointer;font-weight:600}
+.btn.main{background:var(--leaf);color:var(--surface)}
+.btn:hover{filter:brightness(1.08)}
+#status{min-height:1.5rem;margin:.6rem 0 0;color:var(--muted);font-size:.92rem}
+
+section{margin-top:2.2rem}
+h2{margin:0 0 .2rem;font:700 1.35rem/1.2 "Trebuchet MS",system-ui,sans-serif}
+.hint{margin:0 0 .8rem;color:var(--muted);font-size:.95rem}
+.grid{display:grid;gap:.5rem;grid-template-columns:repeat(auto-fill,minmax(5.4rem,1fr))}
+.cell{display:flex;flex-direction:column;align-items:center;gap:.1rem;padding:.5rem .3rem;border:2px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer}
+.cell b{font-size:1.1rem}
+.cell span{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--leaf);font-size:1rem}
+.cell:hover{border-color:var(--leaf)}
+.how{max-width:44rem;color:var(--muted)}
+.how code{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--ink)}
+@media (prefers-reduced-motion:no-preference){.btn,.cell{transition:filter .15s,border-color .15s}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <h1>Nanase translator</h1>
+    <p>Bahasa Nanas for any Latin-script language. Every letter turns into its pineapple syllable. Runs offline in your browser.</p>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="card">
+      <div class="modes" role="tablist" aria-label="Direction">
+        <button role="tab" id="m-enc" aria-selected="true">Text to Nanase</button>
+        <button role="tab" id="m-dec" aria-selected="false">Nanase to text</button>
+      </div>
+
+      <div class="panes">
+        <div class="pane">
+          <label for="src" id="src-l">Your text</label>
+          <textarea id="src" spellcheck="false" autofocus></textarea>
+        </div>
+        <div class="pane">
+          <label for="dst" id="dst-l">Nanase</label>
+          <textarea id="dst" readonly></textarea>
+        </div>
+      </div>
+
+      <div class="bar">
+        <div class="opts" id="opts">
+          <label><input type="checkbox" id="strip" checked> Strip accents (é, ă, đ)</label>
+          <label><input type="checkbox" id="nums" checked> Translate digits</label>
+          <label>Capitals
+            <select id="case">
+              <option value="word">Each word starts with a capital</option>
+              <option value="match">Match my capitals</option>
+              <option value="lower">All lowercase</option>
+            </select>
+          </label>
+        </div>
+        <div class="btns">
+          <button class="btn" id="swap" title="Move the result into the input and flip direction">Swap</button>
+          <button class="btn" id="clear">Clear</button>
+          <button class="btn main" id="copy">Copy result</button>
+        </div>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </div>
+
+    <section>
+      <h2>Alphabet</h2>
+      <p class="hint">Select a letter to copy its code.</p>
+      <div class="grid" id="letters"></div>
+    </section>
+
+    <section>
+      <h2>Numbers</h2>
+      <div class="grid" id="digits"></div>
+    </section>
+
+    <section class="how">
+      <h2>How it works</h2>
+      <p>Letters are swapped one by one, so “Aku capek” becomes <code>Nåsâåasoå Månåsoånsåsâå</code>. Spaces, punctuation and symbols stay as they are. Every letter code ends in <code>å</code> and every digit code ends in <code>í</code>, which is why Nanase can be turned back into text exactly, apart from the original capitals and accents.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+const L={A:'Nå',B:'Så',C:'Må',D:'Nmå',E:'Nså',F:'Manå',G:'Somå',H:'Nomå',I:'Oå',J:'Maå',K:'Sâå',L:'Næå',M:'Meå',N:'Noå',O:'Aoå',P:'Soå',Q:'Aså',R:'Oså',S:'Noså',T:'Saoå',U:'Asoå',V:'Sôå',W:'Nanså',X:'Aå',Y:'Nsoå',Z:'Osoå'};
+const D={0:'Kí',1:'Sí',2:'Dí',3:'Tí',4:'Eí',5:'Lí',6:'Ení',7:'Tují',8:'Deí',9:'Semí'};
+const REV={};
+for(const k in L)REV[L[k].toLowerCase()]=k;
+for(const k in D)REV[D[k].toLowerCase()]=k;
+
+const SP={'đ':'d','Đ':'D','ø':'o','Ø':'O','ł':'l','Ł':'L','ß':'ss','æ':'ae','Æ':'AE','œ':'oe','Œ':'OE','þ':'th','ð':'d','ı':'i'};
+const strip=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐøØłŁßæÆœŒþðı]/g,c=>SP[c]);
+const cap=s=>s[0].toUpperCase()+s.slice(1).toLowerCase();
+
+function encode(text,o){
+  if(o.strip)text=strip(text);
+  let out='',first=true,n=0;
+  for(const ch of text){
+    if(/\s/.test(ch)){out+=ch;first=true;continue}
+    let code=null,up=false;
+    if(/^[A-Za-z]$/.test(ch)){code=L[ch.toUpperCase()];up=ch!==ch.toLowerCase()}
+    else if(o.nums&&/^[0-9]$/.test(ch)){code=D[ch]}
+    if(code===null){out+=ch;continue}
+    const big=o.cs==='word'?first:o.cs==='match'?up:false;
+    out+=big?cap(code):code.toLowerCase();
+    first=false;n++;
+  }
+  return{out,n,bad:0};
+}
+
+function decode(text){
+  text=text.normalize('NFC');
+  let out='',buf='',n=0,bad=0;
+  const flush=()=>{if(buf){out+=buf;bad++;buf=''}};
+  for(const ch of text){
+    if(/\p{L}/u.test(ch)){
+      buf+=ch;
+      const l=ch.toLowerCase();
+      if(l==='å'||l==='í'){
+        const hit=REV[buf.toLowerCase()];
+        if(hit===undefined){out+='?';bad++}
+        else{out+=buf[0]!==buf[0].toLowerCase()?hit:hit.toLowerCase();n++}
+        buf='';
+      }
+    }else{flush();out+=ch}
+  }
+  flush();
+  return{out,n,bad};
+}
+
+const $=id=>document.getElementById(id);
+const src=$('src'),dst=$('dst'),status=$('status');
+let mode='enc';
+
+function run(){
+  const r=mode==='enc'
+    ?encode(src.value,{strip:$('strip').checked,nums:$('nums').checked,cs:$('case').value})
+    :decode(src.value);
+  dst.value=r.out;
+  if(!src.value){status.textContent='';return}
+  status.textContent=(mode==='enc'?r.n+' characters translated':r.n+' codes decoded')
+    +(r.bad?' · '+r.bad+' not recognised (shown as ? or kept as typed)':'');
+}
+
+function setMode(m){
+  mode=m;
+  $('m-enc').setAttribute('aria-selected',m==='enc');
+  $('m-dec').setAttribute('aria-selected',m==='dec');
+  $('src-l').textContent=m==='enc'?'Your text':'Nanase';
+  $('dst-l').textContent=m==='enc'?'Nanase':'Your text';
+  src.placeholder=m==='enc'?'Type or paste text, for example: Aku capek':'Paste Nanase, for example: Nåsâåasoå Månåsoånsåsâå';
+  $('opts').setAttribute('aria-disabled',m==='dec');
+  for(const el of $('opts').querySelectorAll('input,select'))el.disabled=m==='dec';
+  run();
+}
+
+async function copyText(t){
+  try{await navigator.clipboard.writeText(t)}
+  catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}
+}
+let timer;
+function flash(msg){status.textContent=msg;clearTimeout(timer);timer=setTimeout(run,1400)}
+
+$('m-enc').onclick=()=>setMode('enc');
+$('m-dec').onclick=()=>setMode('dec');
+src.addEventListener('input',run);
+for(const id of['strip','nums','case'])$(id).addEventListener('change',run);
+$('clear').onclick=()=>{src.value='';run();src.focus()};
+$('swap').onclick=()=>{const v=dst.value;src.value=v;setMode(mode==='enc'?'dec':'enc');src.focus()};
+$('copy').onclick=async()=>{if(!dst.value){flash('Nothing to copy yet');return}await copyText(dst.value);flash('Copied')};
+
+function fill(id,map,keys){
+  const box=$(id);
+  for(const k of keys){
+    const b=document.createElement('button');
+    b.className='cell';b.type='button';b.title='Copy '+map[k];
+    b.innerHTML='<b>'+k+'</b><span>'+map[k]+'</span>';
+    b.onclick=async()=>{await copyText(map[k]);flash('Copied '+map[k])};
+    box.appendChild(b);
+  }
+}
+fill('letters',L,Object.keys(L));
+fill('digits',D,Object.keys(D));
+setMode('enc');
+</script>
+</body>
+</html>
