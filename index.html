@@ -1,81 +1,287 @@
 <!DOCTYPE html>
+<!--
+  ==========================================================================
+  Nanase translator (Bahasa Nanas)
+  ==========================================================================
+
+  A single-file, offline web page that converts text to Nanase and back.
+  No build step, no dependencies, no network requests: just open it.
+
+  CREDITS
+    Vibe-coded by MiuJoan6952_2 together with Claude (Anthropic).
+    Cipher spec: shared by VN-X.
+
+  HOW THE CIPHER WORKS
+    - Each letter A-Z is replaced by a syllable code ending in "å" (A = Nå).
+    - Each digit 0-9 is replaced by a code ending in "í" (0 = Kí).
+    - Spaces, punctuation and other symbols are left untouched.
+    - Because no code contains another "å" or "í" before its last character,
+      Nanase can be split cleanly into codes, so decoding is exact.
+
+  FILE LAYOUT (search for the banner comments)
+    1. CSS   : design tokens, base, header, card, panes, options, grids, footer
+    2. HTML  : header, translator card, reference tables, how-it-works, footer
+    3. JS    : (a) cipher data  (b) translation functions  (c) user interface
+
+  COMMON CHANGES
+    - Change a code           : edit LETTER_CODES or DIGIT_CODES (JS, part a).
+    - Change colors           : edit the variables under "Design tokens".
+    - Add a letter variant    : edit SPECIAL_LETTERS (JS, part b).
+    - Change the credit line  : search for "MiuJoan6952_2" (two places).
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nanase translator (Bahasa Nanas)</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🍍%3C/text%3E%3C/svg%3E">
+
 <style>
-:root{
-  color-scheme:light dark;
-  --bg:#f2f6e6; --surface:#ffffff; --ink:#1d2916; --muted:#58654a; --line:#cbd8ac;
-  --gold:#f2b705; --gold-ink:#2e2200; --leaf:#2a6a39; --leaf-soft:#e0eec6; --focus:#1c5a2b;
+/* ======================================================================
+   1. CSS
+   ====================================================================== */
+
+/* ---- Design tokens: change the look of the whole page here ------------ */
+:root {
+  color-scheme: light dark;
+
+  --bg:        #f2f6e6;  /* page background (pale leaf)        */
+  --surface:   #ffffff;  /* card and button surfaces           */
+  --ink:       #1d2916;  /* main text                          */
+  --muted:     #58654a;  /* secondary text                     */
+  --line:      #cbd8ac;  /* thin borders                       */
+  --gold:      #f2b705;  /* pineapple skin (header)            */
+  --gold-ink:  #2e2200;  /* text and outlines on gold          */
+  --leaf:      #2a6a39;  /* accent: buttons, tabs, codes       */
+  --leaf-soft: #e0eec6;  /* output box background              */
+  --focus:     #1c5a2b;  /* keyboard focus ring                */
+
+  --font-body:    system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Trebuchet MS", "Avenir Next", system-ui, sans-serif;
+  --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
-@media (prefers-color-scheme:dark){
-  :root{
-    --bg:#10160d; --surface:#18210f; --ink:#eef3dc; --muted:#a3b190; --line:#36452a;
-    --gold:#f5c42c; --gold-ink:#241a00; --leaf:#8fd29c; --leaf-soft:#243318; --focus:#8fd29c;
+
+/* Dark mode: same tokens, different values. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:        #10160d;
+    --surface:   #18210f;
+    --ink:       #eef3dc;
+    --muted:     #a3b190;
+    --line:      #36452a;
+    --gold:      #f5c42c;
+    --gold-ink:  #241a00;
+    --leaf:      #8fd29c;
+    --leaf-soft: #243318;
+    --focus:     #8fd29c;
   }
 }
-*{box-sizing:border-box}
-html{background:var(--bg)}
-body{margin:0;color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg)}
-button,select,textarea,input{font:inherit;color:inherit}
-:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 
-/* pineapple-skin lattice */
-.hero{
-  background-color:var(--gold);
-  background-image:
-    linear-gradient(45deg,rgba(46,34,0,.16) 2px,transparent 2px),
-    linear-gradient(-45deg,rgba(46,34,0,.16) 2px,transparent 2px);
-  background-size:26px 26px;
-  color:var(--gold-ink);
-  padding:2.2rem 1.25rem 3.6rem;
+/* ---- Base ------------------------------------------------------------- */
+* { box-sizing: border-box; }
+
+html { background: var(--bg); }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--bg);
+  font: 16px/1.5 var(--font-body);
 }
-.wrap{max-width:62rem;margin:0 auto}
-h1{margin:0;font:800 clamp(2rem,6vw,3.4rem)/1.05 "Trebuchet MS","Avenir Next",system-ui,sans-serif;letter-spacing:-.02em}
-.hero p{margin:.6rem 0 0;max-width:36rem;font-size:1.05rem}
 
-main{margin-top:-2.4rem;padding:0 1.25rem 3rem}
-.card{background:var(--surface);border:2px solid var(--gold-ink);border-radius:14px;box-shadow:6px 6px 0 var(--gold-ink);padding:1rem}
-@media (prefers-color-scheme:dark){.card{border-color:var(--gold);box-shadow:6px 6px 0 var(--gold)}}
+button, select, textarea, input { font: inherit; color: inherit; }
 
-.modes{display:inline-flex;border:2px solid var(--leaf);border-radius:999px;overflow:hidden;margin-bottom:1rem}
-.modes button{border:0;background:transparent;padding:.45rem 1.1rem;cursor:pointer;font-weight:600;color:var(--leaf)}
-.modes button[aria-selected="true"]{background:var(--leaf);color:var(--surface)}
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
-.panes{display:grid;gap:1rem;grid-template-columns:1fr 1fr}
-@media (max-width:760px){.panes{grid-template-columns:1fr}}
-.pane label{display:block;font-weight:700;margin-bottom:.3rem}
-textarea{width:100%;min-height:11rem;resize:vertical;padding:.75rem;border:2px solid var(--line);border-radius:10px;background:var(--bg);line-height:1.55;overflow-wrap:anywhere}
-#dst{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.98rem;background:var(--leaf-soft)}
+/* Centered content column shared by header and main. */
+.wrap { max-width: 62rem; margin: 0 auto; }
 
-.bar{display:flex;flex-wrap:wrap;gap:.6rem 1.2rem;align-items:center;margin-top:1rem}
-.opts{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;align-items:center}
-.opts label{display:inline-flex;gap:.4rem;align-items:center;cursor:pointer}
-.opts[aria-disabled="true"]{opacity:.45;pointer-events:none}
-select{padding:.25rem .4rem;border:2px solid var(--line);border-radius:8px;background:var(--surface)}
-.btns{display:flex;gap:.5rem;margin-left:auto}
-.btn{border:2px solid var(--leaf);background:transparent;color:var(--leaf);border-radius:8px;padding:.4rem .9rem;cursor:pointer;font-weight:600}
-.btn.main{background:var(--leaf);color:var(--surface)}
-.btn:hover{filter:brightness(1.08)}
-#status{min-height:1.5rem;margin:.6rem 0 0;color:var(--muted);font-size:.92rem}
+/* ---- Header: gold band with a pineapple-skin diamond lattice ----------- */
+.hero {
+  padding: 2.2rem 1.25rem 3.6rem;
+  color: var(--gold-ink);
+  background-color: var(--gold);
+  background-image:
+    linear-gradient(45deg,  rgba(46, 34, 0, .16) 2px, transparent 2px),
+    linear-gradient(-45deg, rgba(46, 34, 0, .16) 2px, transparent 2px);
+  background-size: 26px 26px;
+}
 
-section{margin-top:2.2rem}
-h2{margin:0 0 .2rem;font:700 1.35rem/1.2 "Trebuchet MS",system-ui,sans-serif}
-.hint{margin:0 0 .8rem;color:var(--muted);font-size:.95rem}
-.grid{display:grid;gap:.5rem;grid-template-columns:repeat(auto-fill,minmax(5.4rem,1fr))}
-.cell{display:flex;flex-direction:column;align-items:center;gap:.1rem;padding:.5rem .3rem;border:2px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer}
-.cell b{font-size:1.1rem}
-.cell span{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--leaf);font-size:1rem}
-.cell:hover{border-color:var(--leaf)}
-.how{max-width:44rem;color:var(--muted)}
-.how code{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--ink)}
-@media (prefers-reduced-motion:no-preference){.btn,.cell{transition:filter .15s,border-color .15s}}
+.hero h1 {
+  margin: 0;
+  font: 800 clamp(2rem, 6vw, 3.4rem) / 1.05 var(--font-display);
+  letter-spacing: -.02em;
+}
+
+.hero p { margin: .6rem 0 0; max-width: 36rem; font-size: 1.05rem; }
+
+/* ---- Main area and the translator card --------------------------------- */
+main {
+  margin-top: -2.4rem;          /* card overlaps the header band */
+  padding: 0 1.25rem 3rem;
+}
+
+.card {
+  padding: 1rem;
+  background: var(--surface);
+  border: 2px solid var(--gold-ink);
+  border-radius: 14px;
+  box-shadow: 6px 6px 0 var(--gold-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  .card { border-color: var(--gold); box-shadow: 6px 6px 0 var(--gold); }
+}
+
+/* ---- Direction tabs (Text to Nanase / Nanase to text) ------------------ */
+.modes {
+  display: inline-flex;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  border: 2px solid var(--leaf);
+  border-radius: 999px;
+}
+
+.modes button {
+  padding: .45rem 1.1rem;
+  border: 0;
+  background: transparent;
+  color: var(--leaf);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modes button[aria-selected="true"] { background: var(--leaf); color: var(--surface); }
+
+/* ---- Input and output panes ------------------------------------------- */
+.panes {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 760px) { .panes { grid-template-columns: 1fr; } }
+
+.pane label { display: block; margin-bottom: .3rem; font-weight: 700; }
+
+textarea {
+  width: 100%;
+  min-height: 11rem;
+  padding: .75rem;
+  resize: vertical;
+  overflow-wrap: anywhere;      /* Nanase words have no spaces: let them wrap */
+  line-height: 1.55;
+  background: var(--bg);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+}
+
+#output-text {
+  font-family: var(--font-mono);
+  font-size: .98rem;
+  background: var(--leaf-soft);
+}
+
+/* ---- Options row and buttons ------------------------------------------ */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem 1.2rem;
+  margin-top: 1rem;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem 1.2rem;
+}
+
+.options label { display: inline-flex; align-items: center; gap: .4rem; cursor: pointer; }
+
+/* Options only apply when encoding, so they are dimmed while decoding. */
+.options[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+
+select {
+  padding: .25rem .4rem;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+}
+
+.buttons { display: flex; gap: .5rem; margin-left: auto; }
+
+.btn {
+  padding: .4rem .9rem;
+  background: transparent;
+  color: var(--leaf);
+  border: 2px solid var(--leaf);
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn.primary { background: var(--leaf); color: var(--surface); }
+.btn:hover   { filter: brightness(1.08); }
+
+#status { min-height: 1.5rem; margin: .6rem 0 0; color: var(--muted); font-size: .92rem; }
+
+/* ---- Reference tables (alphabet and numbers) --------------------------- */
+section { margin-top: 2.2rem; }
+
+h2 { margin: 0 0 .2rem; font: 700 1.35rem / 1.2 var(--font-display); }
+
+.hint { margin: 0 0 .8rem; color: var(--muted); font-size: .95rem; }
+
+.grid {
+  display: grid;
+  gap: .5rem;
+  grid-template-columns: repeat(auto-fill, minmax(5.4rem, 1fr));
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .1rem;
+  padding: .5rem .3rem;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.cell b      { font-size: 1.1rem; }
+.cell span   { font-family: var(--font-mono); font-size: 1rem; color: var(--leaf); }
+.cell:hover  { border-color: var(--leaf); }
+
+/* ---- How it works and footer ------------------------------------------ */
+.how { max-width: 44rem; color: var(--muted); }
+.how code, footer code { font-family: var(--font-mono); color: var(--ink); }
+
+footer {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--line);
+  color: var(--muted);
+  font-size: .92rem;
+}
+
+footer p { margin: 0 0 .3rem; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .cell { transition: filter .15s, border-color .15s; }
+}
 </style>
 </head>
+
 <body>
+<!-- ======================================================================
+     2. HTML
+     ====================================================================== -->
+
+<!-- Header band -->
 <header class="hero">
   <div class="wrap">
     <h1>Nanase translator</h1>
@@ -85,163 +291,424 @@ h2{margin:0 0 .2rem;font:700 1.35rem/1.2 "Trebuchet MS",system-ui,sans-serif}
 
 <main>
   <div class="wrap">
+
+    <!-- Translator card: direction tabs, two text boxes, options, buttons -->
     <div class="card">
+
       <div class="modes" role="tablist" aria-label="Direction">
-        <button role="tab" id="m-enc" aria-selected="true">Text to Nanase</button>
-        <button role="tab" id="m-dec" aria-selected="false">Nanase to text</button>
+        <button role="tab" id="mode-encode" aria-selected="true">Text to Nanase</button>
+        <button role="tab" id="mode-decode" aria-selected="false">Nanase to text</button>
       </div>
 
       <div class="panes">
         <div class="pane">
-          <label for="src" id="src-l">Your text</label>
-          <textarea id="src" spellcheck="false" autofocus></textarea>
+          <label for="input-text" id="input-label">Your text</label>
+          <textarea id="input-text" spellcheck="false" autofocus></textarea>
         </div>
         <div class="pane">
-          <label for="dst" id="dst-l">Nanase</label>
-          <textarea id="dst" readonly></textarea>
+          <label for="output-text" id="output-label">Nanase</label>
+          <textarea id="output-text" readonly></textarea>
         </div>
       </div>
 
       <div class="bar">
-        <div class="opts" id="opts">
-          <label><input type="checkbox" id="strip" checked> Strip accents (é, ă, đ)</label>
-          <label><input type="checkbox" id="nums" checked> Translate digits</label>
+        <!-- Encoding options (disabled while decoding) -->
+        <div class="options" id="options">
+          <label><input type="checkbox" id="opt-strip" checked> Strip accents (é, ă, đ)</label>
+          <label><input type="checkbox" id="opt-digits" checked> Translate digits</label>
           <label>Capitals
-            <select id="case">
+            <select id="opt-capitals">
               <option value="word">Each word starts with a capital</option>
               <option value="match">Match my capitals</option>
               <option value="lower">All lowercase</option>
             </select>
           </label>
         </div>
-        <div class="btns">
-          <button class="btn" id="swap" title="Move the result into the input and flip direction">Swap</button>
-          <button class="btn" id="clear">Clear</button>
-          <button class="btn main" id="copy">Copy result</button>
+
+        <div class="buttons">
+          <button class="btn" id="btn-swap" title="Move the result into the input and flip direction">Swap</button>
+          <button class="btn" id="btn-clear">Clear</button>
+          <button class="btn primary" id="btn-copy">Copy result</button>
         </div>
       </div>
+
+      <!-- Live feedback: character count, "Copied", warnings -->
       <p id="status" role="status" aria-live="polite"></p>
     </div>
 
+    <!-- Reference tables are filled in by buildReferenceGrid() in the script -->
     <section>
       <h2>Alphabet</h2>
       <p class="hint">Select a letter to copy its code.</p>
-      <div class="grid" id="letters"></div>
+      <div class="grid" id="letter-grid"></div>
     </section>
 
     <section>
       <h2>Numbers</h2>
-      <div class="grid" id="digits"></div>
+      <div class="grid" id="digit-grid"></div>
     </section>
 
     <section class="how">
       <h2>How it works</h2>
       <p>Letters are swapped one by one, so “Aku capek” becomes <code>Nåsâåasoå Månåsoånsåsâå</code>. Spaces, punctuation and symbols stay as they are. Every letter code ends in <code>å</code> and every digit code ends in <code>í</code>, which is why Nanase can be turned back into text exactly, apart from the original capitals and accents.</p>
     </section>
+
+    <!-- Credits: replace MiuJoan6952_2 (also in the comment at the top) -->
+    <footer>
+      <p>Vibe-coded by MiuJoan6952_2 together with Claude (Anthropic).</p>
+      <p>Cipher spec shared by VN-X.</p>
+    </footer>
+
   </div>
 </main>
 
 <script>
-const L={A:'Nå',B:'Så',C:'Må',D:'Nmå',E:'Nså',F:'Manå',G:'Somå',H:'Nomå',I:'Oå',J:'Maå',K:'Sâå',L:'Næå',M:'Meå',N:'Noå',O:'Aoå',P:'Soå',Q:'Aså',R:'Oså',S:'Noså',T:'Saoå',U:'Asoå',V:'Sôå',W:'Nanså',X:'Aå',Y:'Nsoå',Z:'Osoå'};
-const D={0:'Kí',1:'Sí',2:'Dí',3:'Tí',4:'Eí',5:'Lí',6:'Ení',7:'Tují',8:'Deí',9:'Semí'};
-const REV={};
-for(const k in L)REV[L[k].toLowerCase()]=k;
-for(const k in D)REV[D[k].toLowerCase()]=k;
+/* ========================================================================
+   3. JAVASCRIPT
+   (a) Cipher data   (b) Translation functions   (c) User interface
+   ======================================================================== */
+"use strict";
 
-const SP={'đ':'d','Đ':'D','ø':'o','Ø':'O','ł':'l','Ł':'L','ß':'ss','æ':'ae','Æ':'AE','œ':'oe','Œ':'OE','þ':'th','ð':'d','ı':'i'};
-const strip=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐøØłŁßæÆœŒþðı]/g,c=>SP[c]);
-const cap=s=>s[0].toUpperCase()+s.slice(1).toLowerCase();
 
-function encode(text,o){
-  if(o.strip)text=strip(text);
-  let out='',first=true,n=0;
-  for(const ch of text){
-    if(/\s/.test(ch)){out+=ch;first=true;continue}
-    let code=null,up=false;
-    if(/^[A-Za-z]$/.test(ch)){code=L[ch.toUpperCase()];up=ch!==ch.toLowerCase()}
-    else if(o.nums&&/^[0-9]$/.test(ch)){code=D[ch]}
-    if(code===null){out+=ch;continue}
-    const big=o.cs==='word'?first:o.cs==='match'?up:false;
-    out+=big?cap(code):code.toLowerCase();
-    first=false;n++;
+/* ------------------------------------------------------------------------
+   (a) CIPHER DATA
+   The only place where the cipher itself is defined. Edit codes here.
+   Rule that keeps decoding exact: letter codes contain "å" only as their
+   last character, and digit codes contain "í" only as their last character.
+   ------------------------------------------------------------------------ */
+
+const LETTER_CODES = {
+  A: "Nå",   B: "Så",   C: "Må",    D: "Nmå",  E: "Nså",
+  F: "Manå", G: "Somå", H: "Nomå",  I: "Oå",   J: "Maå",
+  K: "Sâå",  L: "Næå",  M: "Meå",   N: "Noå",  O: "Aoå",
+  P: "Soå",  Q: "Aså",  R: "Oså",   S: "Noså", T: "Saoå",
+  U: "Asoå", V: "Sôå",  W: "Nanså", X: "Aå",   Y: "Nsoå",
+  Z: "Osoå",
+};
+
+const DIGIT_CODES = {
+  0: "Kí",  1: "Sí",   2: "Dí",  3: "Tí",   4: "Eí",
+  5: "Lí",  6: "Ení",  7: "Tují", 8: "Deí", 9: "Semí",
+};
+
+/** Characters that end a code. The decoder cuts the text after each one. */
+const CODE_TERMINATORS = ["å", "í"];
+
+/**
+ * Builds the decoding table: lowercase code -> original character.
+ * Example: "nå" -> "A", "kí" -> "0".
+ */
+function buildReverseLookup() {
+  const lookup = {};
+  for (const [letter, code] of Object.entries(LETTER_CODES)) lookup[code.toLowerCase()] = letter;
+  for (const [digit, code] of Object.entries(DIGIT_CODES))   lookup[code.toLowerCase()] = digit;
+  return lookup;
+}
+
+const CHAR_FROM_CODE = buildReverseLookup();
+
+
+/* ------------------------------------------------------------------------
+   (b) TRANSLATION FUNCTIONS
+   Pure functions: they take text in and give text out, and never touch the
+   page. Both return { text, count, problems }:
+     text     the translated result
+     count    how many characters or codes were translated
+     problems how many pieces could not be translated
+   ------------------------------------------------------------------------ */
+
+/**
+ * Letters that do not decompose into a plain letter plus an accent.
+ * Used when "Strip accents" is on. Add more pairs here if you need them.
+ */
+const SPECIAL_LETTERS = {
+  "đ": "d",  "Đ": "D",  "ø": "o",  "Ø": "O",  "ł": "l",  "Ł": "L",
+  "ß": "ss", "æ": "ae", "Æ": "AE", "œ": "oe", "Œ": "OE",
+  "þ": "th", "ð": "d",  "ı": "i",
+};
+
+/** "é" -> "e", "ă" -> "a", "đ" -> "d", "ß" -> "ss". */
+function stripAccents(text) {
+  return text
+    .normalize("NFD")                          // split "é" into "e" + accent mark
+    .replace(/[\u0300-\u036f]/g, "")           // drop the accent marks
+    .replace(/[đĐøØłŁßæÆœŒþðı]/g, (ch) => SPECIAL_LETTERS[ch]);
+}
+
+/** "nsoå" -> "Nsoå": first character upper case, the rest lower case. */
+function capitalize(code) {
+  return code[0].toUpperCase() + code.slice(1).toLowerCase();
+}
+
+/**
+ * Text -> Nanase.
+ *
+ * @param {string} text
+ * @param {object} options
+ * @param {boolean} options.stripAccents    Remove accents before translating.
+ * @param {boolean} options.translateDigits Translate 0-9 as well as letters.
+ * @param {"word"|"match"|"lower"} options.capitals
+ *        "word"  : the first code of every word is capitalized (like the spec)
+ *        "match" : a code is capitalized when its source letter was
+ *        "lower" : everything lowercase
+ */
+function encode(text, options) {
+  if (options.stripAccents) text = stripAccents(text);
+
+  let result = "";
+  let count = 0;
+  let atWordStart = true;
+
+  for (const ch of text) {
+    // Whitespace is copied through and starts a new word.
+    if (/\s/.test(ch)) {
+      result += ch;
+      atWordStart = true;
+      continue;
+    }
+
+    // Find the code for this character, if it has one.
+    let code = null;
+    let wasUpperCase = false;
+    if (/^[A-Za-z]$/.test(ch)) {
+      code = LETTER_CODES[ch.toUpperCase()];
+      wasUpperCase = ch !== ch.toLowerCase();
+    } else if (options.translateDigits && /^[0-9]$/.test(ch)) {
+      code = DIGIT_CODES[ch];
+    }
+
+    // Symbols, punctuation and unsupported characters stay exactly as typed.
+    if (code === null) {
+      result += ch;
+      continue;
+    }
+
+    let shouldCapitalize = false;
+    if (options.capitals === "word")  shouldCapitalize = atWordStart;
+    if (options.capitals === "match") shouldCapitalize = wasUpperCase;
+
+    result += shouldCapitalize ? capitalize(code) : code.toLowerCase();
+    atWordStart = false;
+    count++;
   }
-  return{out,n,bad:0};
+
+  return { text: result, count, problems: 0 };
 }
 
-function decode(text){
-  text=text.normalize('NFC');
-  let out='',buf='',n=0,bad=0;
-  const flush=()=>{if(buf){out+=buf;bad++;buf=''}};
-  for(const ch of text){
-    if(/\p{L}/u.test(ch)){
-      buf+=ch;
-      const l=ch.toLowerCase();
-      if(l==='å'||l==='í'){
-        const hit=REV[buf.toLowerCase()];
-        if(hit===undefined){out+='?';bad++}
-        else{out+=buf[0]!==buf[0].toLowerCase()?hit:hit.toLowerCase();n++}
-        buf='';
-      }
-    }else{flush();out+=ch}
+/**
+ * Nanase -> text.
+ *
+ * Reads letters into a buffer until a terminator ("å" or "í") closes a code,
+ * then looks the buffer up. Anything that is not a letter (space,
+ * punctuation) is copied through.
+ *   - Unknown code        : output "?" and count a problem.
+ *   - Leftover letters    : kept as typed and counted as a problem.
+ *   - Capital first letter in a code gives a capital letter in the result.
+ */
+function decode(text) {
+  text = text.normalize("NFC"); // make sure "å" is one character, not "a" + ring
+
+  let result = "";
+  let buffer = "";
+  let count = 0;
+  let problems = 0;
+
+  const flushLeftovers = () => {
+    if (buffer) {
+      result += buffer;
+      problems++;
+      buffer = "";
+    }
+  };
+
+  for (const ch of text) {
+    if (!/\p{L}/u.test(ch)) {
+      flushLeftovers();
+      result += ch;
+      continue;
+    }
+
+    buffer += ch;
+    if (!CODE_TERMINATORS.includes(ch.toLowerCase())) continue; // code not finished yet
+
+    const original = CHAR_FROM_CODE[buffer.toLowerCase()];
+    if (original === undefined) {
+      result += "?";
+      problems++;
+    } else {
+      const startsUpperCase = buffer[0] !== buffer[0].toLowerCase();
+      result += startsUpperCase ? original : original.toLowerCase();
+      count++;
+    }
+    buffer = "";
   }
-  flush();
-  return{out,n,bad};
+  flushLeftovers();
+
+  return { text: result, count, problems };
 }
 
-const $=id=>document.getElementById(id);
-const src=$('src'),dst=$('dst'),status=$('status');
-let mode='enc';
 
-function run(){
-  const r=mode==='enc'
-    ?encode(src.value,{strip:$('strip').checked,nums:$('nums').checked,cs:$('case').value})
-    :decode(src.value);
-  dst.value=r.out;
-  if(!src.value){status.textContent='';return}
-  status.textContent=(mode==='enc'?r.n+' characters translated':r.n+' codes decoded')
-    +(r.bad?' · '+r.bad+' not recognised (shown as ? or kept as typed)':'');
+/* ------------------------------------------------------------------------
+   (c) USER INTERFACE
+   Everything below reads from or writes to the page.
+   ------------------------------------------------------------------------ */
+
+const $ = (id) => document.getElementById(id);
+
+/** Every page element the script needs, in one place. */
+const ui = {
+  modeEncode:   $("mode-encode"),
+  modeDecode:   $("mode-decode"),
+  inputLabel:   $("input-label"),
+  outputLabel:  $("output-label"),
+  input:        $("input-text"),
+  output:       $("output-text"),
+  options:      $("options"),
+  optStrip:     $("opt-strip"),
+  optDigits:    $("opt-digits"),
+  optCapitals:  $("opt-capitals"),
+  btnSwap:      $("btn-swap"),
+  btnClear:     $("btn-clear"),
+  btnCopy:      $("btn-copy"),
+  status:       $("status"),
+  letterGrid:   $("letter-grid"),
+  digitGrid:    $("digit-grid"),
+};
+
+/** The only piece of state: are we encoding or decoding? */
+const state = { mode: "encode" };
+
+const PLACEHOLDERS = {
+  encode: "Type or paste text, for example: Aku capek",
+  decode: "Paste Nanase, for example: Nåsâåasoå Månåsoånsåsâå",
+};
+
+/** Reads the current option controls into the shape encode() expects. */
+function readEncodeOptions() {
+  return {
+    stripAccents:    ui.optStrip.checked,
+    translateDigits: ui.optDigits.checked,
+    capitals:        ui.optCapitals.value,
+  };
 }
 
-function setMode(m){
-  mode=m;
-  $('m-enc').setAttribute('aria-selected',m==='enc');
-  $('m-dec').setAttribute('aria-selected',m==='dec');
-  $('src-l').textContent=m==='enc'?'Your text':'Nanase';
-  $('dst-l').textContent=m==='enc'?'Nanase':'Your text';
-  src.placeholder=m==='enc'?'Type or paste text, for example: Aku capek':'Paste Nanase, for example: Nåsâåasoå Månåsoånsåsâå';
-  $('opts').setAttribute('aria-disabled',m==='dec');
-  for(const el of $('opts').querySelectorAll('input,select'))el.disabled=m==='dec';
-  run();
+/** Translates the input box and shows the result. Runs on every change. */
+function updateOutput() {
+  const result = state.mode === "encode"
+    ? encode(ui.input.value, readEncodeOptions())
+    : decode(ui.input.value);
+
+  ui.output.value = result.text;
+  showSummary(result);
 }
 
-async function copyText(t){
-  try{await navigator.clipboard.writeText(t)}
-  catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}
+/** Status line under the boxes: how much was translated, and any problems. */
+function showSummary(result) {
+  if (!ui.input.value) {
+    ui.status.textContent = "";
+    return;
+  }
+  const done = state.mode === "encode"
+    ? `${result.count} characters translated`
+    : `${result.count} codes decoded`;
+  const warning = result.problems
+    ? `. ${result.problems} not recognised (shown as ? or kept as typed)`
+    : "";
+  ui.status.textContent = done + warning;
 }
-let timer;
-function flash(msg){status.textContent=msg;clearTimeout(timer);timer=setTimeout(run,1400)}
 
-$('m-enc').onclick=()=>setMode('enc');
-$('m-dec').onclick=()=>setMode('dec');
-src.addEventListener('input',run);
-for(const id of['strip','nums','case'])$(id).addEventListener('change',run);
-$('clear').onclick=()=>{src.value='';run();src.focus()};
-$('swap').onclick=()=>{const v=dst.value;src.value=v;setMode(mode==='enc'?'dec':'enc');src.focus()};
-$('copy').onclick=async()=>{if(!dst.value){flash('Nothing to copy yet');return}await copyText(dst.value);flash('Copied')};
+/** Shows a short message, then returns to the normal summary. */
+let flashTimer;
+function flashStatus(message) {
+  ui.status.textContent = message;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(updateOutput, 1400);
+}
 
-function fill(id,map,keys){
-  const box=$(id);
-  for(const k of keys){
-    const b=document.createElement('button');
-    b.className='cell';b.type='button';b.title='Copy '+map[k];
-    b.innerHTML='<b>'+k+'</b><span>'+map[k]+'</span>';
-    b.onclick=async()=>{await copyText(map[k]);flash('Copied '+map[k])};
-    box.appendChild(b);
+/** Switches between "encode" and "decode" and updates labels and options. */
+function setMode(mode) {
+  state.mode = mode;
+  const encoding = mode === "encode";
+
+  ui.modeEncode.setAttribute("aria-selected", encoding);
+  ui.modeDecode.setAttribute("aria-selected", !encoding);
+  ui.inputLabel.textContent  = encoding ? "Your text" : "Nanase";
+  ui.outputLabel.textContent = encoding ? "Nanase" : "Your text";
+  ui.input.placeholder = PLACEHOLDERS[mode];
+
+  // Encoding options mean nothing while decoding.
+  ui.options.setAttribute("aria-disabled", !encoding);
+  for (const control of ui.options.querySelectorAll("input, select")) control.disabled = !encoding;
+
+  updateOutput();
+}
+
+/** Copies text to the clipboard; falls back to a hidden textarea if blocked. */
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+    const helper = document.createElement("textarea");
+    helper.value = text;
+    document.body.appendChild(helper);
+    helper.select();
+    document.execCommand("copy");
+    helper.remove();
   }
 }
-fill('letters',L,Object.keys(L));
-fill('digits',D,Object.keys(D));
-setMode('enc');
+
+/** Fills a reference grid with one clickable cell per character. */
+function buildReferenceGrid(container, codes) {
+  for (const [character, code] of Object.entries(codes)) {
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = "cell";
+    cell.title = `Copy ${code}`;
+    cell.innerHTML = `<b>${character}</b><span>${code}</span>`; // values come from the constants above
+    cell.addEventListener("click", async () => {
+      await copyToClipboard(code);
+      flashStatus(`Copied ${code}`);
+    });
+    container.appendChild(cell);
+  }
+}
+
+/* ---- Event wiring ------------------------------------------------------ */
+
+ui.modeEncode.addEventListener("click", () => setMode("encode"));
+ui.modeDecode.addEventListener("click", () => setMode("decode"));
+
+ui.input.addEventListener("input", updateOutput);
+for (const control of [ui.optStrip, ui.optDigits, ui.optCapitals]) {
+  control.addEventListener("change", updateOutput);
+}
+
+ui.btnClear.addEventListener("click", () => {
+  ui.input.value = "";
+  updateOutput();
+  ui.input.focus();
+});
+
+ui.btnSwap.addEventListener("click", () => {
+  ui.input.value = ui.output.value;                       // result becomes the new input
+  setMode(state.mode === "encode" ? "decode" : "encode"); // and the direction flips
+  ui.input.focus();
+});
+
+ui.btnCopy.addEventListener("click", async () => {
+  if (!ui.output.value) {
+    flashStatus("Nothing to copy yet");
+    return;
+  }
+  await copyToClipboard(ui.output.value);
+  flashStatus("Copied");
+});
+
+/* ---- Start-up ---------------------------------------------------------- */
+
+buildReferenceGrid(ui.letterGrid, LETTER_CODES);
+buildReferenceGrid(ui.digitGrid, DIGIT_CODES);
+setMode("encode");
 </script>
 </body>
 </html>
